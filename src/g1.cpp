@@ -111,6 +111,11 @@ G1RobotModule::G1RobotModule(const std::string & variant)
   _bodySensors.emplace_back("Accelerometer", "torso_link",sva::PTransformd(Eigen::Vector3d(-0.03959, -0.00224, 0.13792)));
   _bodySensors.emplace_back("FloatingBase", "pelvis", sva::PTransformd::Identity());
 
+  // Foot wrench sensors to bind mc_rtc force tasks
+  _forceSensors.emplace_back("LeftFootForceSensor", "left_ankle_roll_link", sva::PTransformd::Identity());  // bc F/T sensors would normally sit in ankle
+  _forceSensors.emplace_back("RightFootForceSensor", "right_ankle_roll_link", sva::PTransformd::Identity());
+
+
   _minimalSelfCollisions = {mc_rbdyn::Collision("torso_link", "left_shoulder_yaw_link", 0.02, 0.001, 0.),
                             mc_rbdyn::Collision("torso_link", "right_shoulder_yaw_link", 0.02, 0.001, 0.),
                             mc_rbdyn::Collision("torso_link", "left_elbow_link", 0.05, 0.03, 0.),
@@ -127,7 +132,26 @@ G1RobotModule::G1RobotModule(const std::string & variant)
                             mc_rbdyn::Collision("right_ankle_pitch_link", "left_knee_link", 0.02, 0.01, 0.)};
   _commonSelfCollisions = _minimalSelfCollisions;
 
-
+  // Default LIPM stabilizer configuration (for ismpc_walking)
+  _lipmStabilizerConfig.leftFootSurface = "LeftFootCenter";
+  _lipmStabilizerConfig.rightFootSurface = "RightFootCenter";
+  _lipmStabilizerConfig.torsoBodyName = "torso_link";
+  // CoM at the half-sitting stance (hardcoded for G1-Revo2)
+  _lipmStabilizerConfig.comHeight = 0.69;
+  _lipmStabilizerConfig.torsoPitch = 0;
+  _lipmStabilizerConfig.comActiveJoints = {"Root",
+                                           "left_hip_pitch_joint",
+                                           "left_hip_roll_joint",
+                                           "left_hip_yaw_joint",
+                                           "left_knee_joint",
+                                           "left_ankle_pitch_joint",
+                                           "left_ankle_roll_joint",
+                                           "right_hip_pitch_joint",
+                                           "right_hip_roll_joint",
+                                           "right_hip_yaw_joint",
+                                           "right_knee_joint",
+                                           "right_ankle_pitch_joint",
+                                           "right_ankle_roll_joint"};
 }
 
 static mc_rbdyn::RobotModule * makeG1WithRevo2(const std::string & module_name)
@@ -161,7 +185,14 @@ static mc_rbdyn::RobotModule * makeG1WithRevo2(const std::string & module_name)
         .name(module_name)
         .bodySensorMapping({{"FloatingBase", "FloatingBase_RightHand"}}));
 
-  return new mc_rbdyn::RobotModule(g1Both);
+  auto * module = new mc_rbdyn::RobotModule(g1Both);
+
+  // Hand wrench sensors, added after the G1-Revo2 merge 
+  // (bc the palm surfaces on Revo2 base links, which only exist after merge)
+  module->_forceSensors.emplace_back("LeftHandForceSensor", "left_base_link", sva::PTransformd::Identity());
+  module->_forceSensors.emplace_back("RightHandForceSensor", "right_base_link", sva::PTransformd::Identity());
+
+  return module;
 }
 
 } // namespace mc_robots
